@@ -1,0 +1,402 @@
+---
+title: "Purposeful Variable Selection of Logistic Regression"
+author: "Kennedy Zinn"
+date: "2025-03-18"
+output: html_document
+---
+
+```{r}
+suppressPackvar10StartupMessvar10s(library(dplyr))
+suppressPackvar10StartupMessvar10s(library(readr))
+suppressPackvar10StartupMessvar10s(library(fastDummies))
+suppressPackvar10StartupMessvar10s(library(ggplot2))
+suppressPackvar10StartupMessvar10s(library(ResourceSelection))
+suppressPackvar10StartupMessvar10s(library(scales))
+suppressPackvar10StartupMessvar10s(library(utils))
+suppressPackvar10StartupMessvar10s(library(rtf))
+```
+
+# Clean data
+
+```{r}
+# load data generated from PCA or EFA in SAS and view variables
+df <- read_csv('/path/to/csv',
+                 na = c("NA", "Missin", "Missing", "Not in", "Unknown", ""))
+head(df)
+```
+
+```{r}
+problems(df)
+```
+
+```{r}
+# Lower all column name cases
+colnames(df) <- tolower(colnames(df))
+head(df)
+```
+
+```{r}
+df <- df %>% 
+  select(c(variables, of, interest)) %>% 
+  filter(!is.na(disease))
+```
+
+```{r}
+# drop for var10 below 20
+df <- df %>% 
+  filter(var10>=20)
+summary(df$var10)
+```
+
+```{r}
+# create dummy variables
+df <- df %>% 
+  dummy_cols(select_columns = c("var1", "var6", "var2", "var3", "var4", "var5"),
+  ignore_na = TRUE)
+head(df)
+```
+
+# Step 1: univariate analysis
+
+## categorical covariates
+
+### chi square and contingency table function
+
+```{r}
+chi_test <- function(covariate) {
+  result <- table(df[[covariate]], df[["disease"]]) %>% 
+    chisq.test()
+  print(result)
+  print(result$observed)
+  print(result$expected)
+}
+```
+
+```{r}
+chi_test("var1")
+chi_test("var2")
+chi_test("var3")
+chi_test("var4")
+chi_test("var6")
+chi_test("var7")
+chi_test("var8")
+chi_test("var9")
+chi_test("var5")
+```
+
+## continuous covariates
+
+### var12
+
+```{r}
+table(df$var12)
+```
+
+```{r}
+var12_model <- glm(formula = disease ~ var12, data=df, family=binomial)
+summary(var12_model)
+```
+
+### var13
+
+```{r}
+table(df$var13)
+```
+
+```{r}
+var13_model <- glm(formula = disease ~ var13, data = df, family = binomial)
+summary(var13_model)
+```
+
+### var10
+
+```{r}
+hist_by_lc <- function(covariate){
+  distribution <- df %>%
+    select({{ covariate }}, disease) %>% 
+    filter(!is.na(disease))
+  hist <- distribution %>% 
+    ggplot(aes(x = {{ covariate }}, fill = disease)) +
+            geom_histogram() +
+            facet_wrap(~disease, scales = "free")
+  print(hist)
+}
+```
+
+```{r}
+hist_by_lc(`var10`)
+```
+
+```{r}
+var10_test <- t.test(var10 ~ disease, data = df, var.equal = FALSE)
+print(var10_test)
+```
+
+### var11
+
+```{r}
+hist_by_lc(var11)
+```
+
+
+### log regression of PC1, PC2 and PC3
+
+```{r}
+pc_model <- glm(disease ~ pc1 + pc2 + pc3, data = df, family = binomial)
+summary(pc_model)
+```
+
+# Step 2: First model
+
+```{r}
+first_model <- glm(disease ~ pc1 + pc2 + pc3 + var10 + var11 + var1 + var2_1 + var2_2 + var2_3 + var2_4 + var4 + `var5_1` + var5_2 + `var5_3 + var6_1 + var6_2 + var7 + var14 + var12 + var13,
+                   data=df,
+                   family=binomial)
+summary(first_model)
+```
+
+### merging var 3 categories
+
+```{r}
+df <- df %>% 
+  dummy_cols(select_columns = "var3", ignore_na = TRUE)
+```
+
+```{r}
+first_model_ethnicity <- glm(disease ~ pc1 + pc2 + pc3 + var10 + var11 + var1_Female+ var6_Yes + var14 + var12 + var13,
+                   data=df,
+                   family=binomial)
+summary(first_model_ethnicity)
+```
+
+## Model with covariates of p\<0.05
+
+### coefficient changes \>20% : none
+
+```{r}
+second_model <- glm(disease ~ pc1+ var10 + var11 + var1_Female + var14+ var12 + var13,
+                   data=df,
+                   family=binomial)
+summary(second_model)
+```
+
+# Step 3: mitigate coefficient changes
+
+# Step 4: returning variables excluded in step 1
+
+```{r}
+step_4_model <- glm(disease ~ pc1 + var10 + var11 + var1_Female + var14+ var12 + var13 + var8,
+                   data=df,
+                   family=binomial)
+summary(step_4_model)
+```
+
+```{r}
+step_4_model <- glm(disease ~ pc1 + var10 + var11 + var1_Female + var14+ var12 + var13+ cardiovascular_heart.disease,
+                   data=df,
+                   family=binomial)
+summary(step_4_model)
+```
+
+```{r}
+step_4_model <- glm(disease ~ pc1 + var10 + var11 + var1_Female + var14+ var12 + var13+ var9,
+                   data=df,
+                   family=binomial)
+summary(step_4_model)
+```
+
+```{r}
+step_4_model <- glm(disease ~pc1 + var10 + var11 + var1_Female + var14+ var12 + var13+ diabetes,
+                   data=df,
+                   family=binomial)
+summary(step_4_model)
+```
+
+```{r}
+step_4_model <- glm(disease ~ pc1 + var10 + var11 + var1_Female + var14+ var12 + var13+ hypertension,
+                   data=df,
+                   family=binomial)
+summary(step_4_model)
+```
+
+# Preliminary Effects Model:
+
+```{r}
+summary(second_model)
+```
+
+# Step 5: Assessing linearity
+
+## Obtain estimated log odds
+
+```{r}
+yhat <- predict(second_model, type = "response", newdata = df)
+df$yhat <- yhat
+df_clean <- df %>% 
+  filter(!is.na(pc1)) %>% 
+  filter(!is.na(disease)) %>% 
+  filter(!is.na(yhat)) %>% 
+  filter(!is.na(var10)) %>% 
+  filter(!is.na(var11)) %>% 
+  fiter(!is.na(var12)) %>% 
+  filter(!is.na(var13)) %>% 
+  mutate(logit_p = log((yhat)/(1 - yhat)))
+```
+
+## pc1
+
+### lowess plot
+
+```{r}
+plot_lowess <- function(x){
+  lowess_df_clean <- df_clean %>% 
+    filter(!is.na({{x}}))
+  plot(df_clean[[x]], df_clean$logit_p, main = "LOWESS", xlab = {{x}}, ylab = "Log Odds of Long Covid")
+  lowess_curve <- lowess(df_clean[[x]], df_clean$logit_p)
+  lines(lowess_curve, col = "red", lwd = 2)
+}
+plot_lowess("pc1")
+```
+
+## pc3
+
+```{r}
+plot_lowess("pc2")
+```
+
+## var10
+
+```{r}
+plot_lowess("var10")
+```
+
+## var11
+
+```{r}
+plot_lowess("var11")
+```
+
+## var12
+
+```{r}
+plot_lowess("var12")
+```
+
+## var13
+
+```{r}
+plot_lowess("var13")
+```
+
+# Main Effects Model:
+
+```{r}
+summary(second_model)
+```
+
+# Step 6: Checking interactions
+
+## create interaction terms
+
+```{r}
+print(mean(df_clean$var10))
+print(mean(df_clean$var13))
+print(mean(df_clean$var12))
+print(mean(df_clean$var11))
+print(mean(df_clean$pc1))
+print(mean(df_clean$pc2))
+```
+
+```{r}
+df_inter <- df_clean %>% 
+  mutate(
+    ctr_var10 = (var10 - 52.27096),
+    ctr_var12 = (var12 - 2.33607),
+    ctr_var13 = (var13 - 0.4961915),
+    ctr_pc1 = (pc1 - 3.645434),
+    ctr_pc2 = (pc2 - 0.3261621),
+    ctr_var11 = (var11 - 27.51),
+    var10_pc1 = ctr_pc1*ctr_var10,
+    var10_pc2 = ctr_pc2*ctr_var10,
+    var12_var13 = ctr_var12*ctr_var13,
+    var10_var12 = ctr_var10*ctr_vacc
+  )
+```
+
+## testing each interaction
+
+```{r}
+interaction_test <- function(b1, b2 = NULL, b3 = NULL, b4 = NULL) {
+interaction_formula <- paste("disease ~ pc1 + var10 + var11 + var1 + var14+ var12 + var13")
+if (!missing(b1)) interaction_formula <- paste(interaction_formula, "+", b1)
+if (!missing(b2)) interaction_formula <- paste(interaction_formula, "+", b2)
+if (!missing(b3)) interaction_formula <- paste(interaction_formula, "+", b3)
+if (!missing(b4)) interaction_formula <- paste(interaction_formula, "+", b4)
+interaction_model <- glm(as.formula(interaction_formula),
+                   data=df_inter,
+                   family=binomial)
+reduced_model <- glm(disease ~ pc1 + var10 + var11 + var1_Female + var14+ var12 + var13,
+                   data=df,
+                   family=binomial)
+lrt <- anova(reduced_model, interaction_model, test = "LRT")
+ifelse(lrt[,5] < 0.05, print(lrt), print(NA))
+}
+```
+
+```{r}
+interaction_test("var12_var13")
+interaction_test("var10_var12")
+```
+
+# Preliminary Final Model:
+
+```{r}
+df_inter_clean <- df_inter %>% 
+  filter(!is.na(var1)) %>% 
+  filter(!is.na(var4)) %>% 
+  filter(!is.na(var3)) %>% 
+  filter(!is.na(var7)) %>% 
+  filter(!is.na(var14))
+set.seed(32)
+no_lc <- df_inter_clean%>% 
+  filter(disease==0)
+set <- sample(nrow(no_lc), nrow(no_lc)*0.95)
+df_balance <- df_inter_clean
+df_balance <- df_balance[-set,]
+table(df_balance$disease)
+```
+
+```{r}
+prelim_final <- glm(disease ~pc1+ctr_var10+ var11 + var1+ctr_var12 + ctr_var13+var12_var13+var10_var12,
+                   data=df_inter,
+                   family=binomial)
+summary(prelim_final)
+```
+
+# Step 7: Assess fit using HL test
+
+```{r}
+yhat_final <- predict(prelim_final, type = "response")
+hl_test <- hoslem.test(df_inter$disease, yhat_final, g = 348)
+print(hl_test)
+```
+
+# Export Results
+
+```{r}
+final <- prelim_final
+rtf_or <- RTF("df_OR.rtf")
+addParagraph(rtf_or, "Table 3: Univariate logistics analysis of adjusted odds ratios for the effect of PC1, PC2 and PC3.")
+addTable(rtf_or, as.data.frame(cbind(round(exp(coefficients(final)), 2), round(exp(confint(final, test = "Rao")), 2), round(coef(summary(final))[,4], 3))), row.names = TRUE)
+done(rtf_or)
+```
+
+```{r}
+rtf_pc.or <- RTF("pc_OR.rtf")
+addTable.RTF(rtf_pc.or, as.data.frame(cbind(round(exp(coefficients(pc_model)), 2), round(exp(confint(pc_model, test = "Rao")), 2), round(coef(summary(pc_model))[,4], 3))), row.names = TRUE)
+done(rtf_pc.or)
+```
+
+```{r}
+print(confint(final, test = "Rao"))
+```
