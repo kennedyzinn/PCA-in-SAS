@@ -119,8 +119,8 @@ proc factor data = mh_data(keep = response_1 -- response_7)
 	plot=scree;
 run;
 ods rtf close;
-/*Aim 2: LR;*/
-/*Look at disease outcome;*/
+/*logistric regression (continued in R);*/
+/*Merge data for observing disease outcome;*/
 proc import 
 datafile='/path/to/csv' 
 dbms=csv
@@ -136,8 +136,8 @@ data mh_data_pc;
 	if disease = "NA" then longcovid = .;
 	else longcovid = input(disease, ?? best32.);
 	pc1=(pc1(1,1)*response_1+(pc1(2,1))*response_2+(pc1(3,1))*response_3+(pc1(4,1))*response_4+(pc1(5,1))*response_5+(pc1(6,1))*response_6+(pc1(7,1))*response_7;
-	pc2=-.317*response_1-.273*response_2-.223*response_3+0.263*response_5+0.827*response_6;
-	pc3=-.45*response_1+.502*response_4+.608*response_5-.417*response_6;
+	pc2=pc2(1,1)*response_1+pc2(2,1)*response_2+pc2(3,1)*response_3+pc2(4,1)*response_5+pc2(5,1)*response_6;
+	pc3=pc3(1,1)*response_1+pc3(2,1)*response_4+pc3(3,1)*response_5+pc3(4,1)*response_6;
 run;
 proc sort data=mh_data_pc;
 by record_id;
